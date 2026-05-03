@@ -74,9 +74,43 @@ from gr_gnuplot import mixer_sink_c
 from gr_gnuplot import fll_sink_c
 
 sys.path.append('tdma')
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'python')))
+try:
+    from key_recovery import attempt_recovery, add_recovered_key, ciphertext_store, recovery_lock
+except ImportError:
+    attempt_recovery = None
+    add_recovered_key = None
+    ciphertext_store = {}
+    recovery_lock = threading.Lock()
+
 import lfsr
 
 os.environ['IMBE'] = 'soft'
+
+
+def handle_recover_keys(tgid, kid):
+    if attempt_recovery is None or add_recovered_key is None:
+        return "[-] Key recovery module unavailable.\n"
+
+    results = attempt_recovery(tgid, kid)
+    response = ""
+    for tgid, kid, key_type, key_hex in results:
+        add_recovered_key(kid, key_type, key_hex)
+        response += "[+] Recovered %s key for KID %s: %s\n" % (key_type, format(kid, '#x'), key_hex)
+    if not results:
+        response = "[-] No keys recovered. Check ciphertext or try again later.\n"
+    return response
+
+
+def show_key_status():
+    try:
+        response = "[*] Stored ciphertext for key recovery:\n"
+        with recovery_lock:
+            for (tgid, kid), samples in ciphertext_store.items():
+                response += " TGID %s, KID %s: %d samples\n" % (tgid, format(kid, '#x'), len(samples))
+        return response
+    except Exception:
+        return "[-] Key recovery module unavailable.\n"
 
 _def_symbol_rate = 4800
 _def_capture_file = "capture.bin"
@@ -912,6 +946,43 @@ class rx_block (gr.top_block):
             # TODO: find a better way to invoke
             for chan in self.channels:
                 chan.error_tracking()
+        elif s == '/recover-keys':
+            response = handle_recover_keys(None, None)
+            sys.stderr.write(response)
+            try:
+                js = json.dumps({'json_type': 'key_recovery', 'response': response})
+                msg = gr.message().make_from_string(js, -4, 0, 0)
+                if not self.ui_in_q.full_p():
+                    self.ui_in_q.insert_tail(msg)
+            except Exception:
+                pass
+        elif s.startswith('/recover-key'):
+            parts = s.split()
+            if len(parts) == 3:
+                try:
+                    response = handle_recover_keys(int(parts[1], 0), int(parts[2], 0))
+                except ValueError:
+                    response = "Usage: /recover-key <tgid> <kid>\n"
+            else:
+                response = "Usage: /recover-key <tgid> <kid>\n"
+            sys.stderr.write(response)
+            try:
+                js = json.dumps({'json_type': 'key_recovery', 'response': response})
+                msg = gr.message().make_from_string(js, -4, 0, 0)
+                if not self.ui_in_q.full_p():
+                    self.ui_in_q.insert_tail(msg)
+            except Exception:
+                pass
+        elif s == '/key-status':
+            response = show_key_status()
+            sys.stderr.write(response)
+            try:
+                js = json.dumps({'json_type': 'key_recovery_status', 'response': response})
+                msg = gr.message().make_from_string(js, -4, 0, 0)
+                if not self.ui_in_q.full_p():
+                    self.ui_in_q.insert_tail(msg)
+            except Exception:
+                pass
         elif s in RX_COMMANDS:
             if self.trunking is not None and self.trunk_rx is not None:
                 self.trunk_rx.ui_command(s, msg.arg1(), msg.arg2())

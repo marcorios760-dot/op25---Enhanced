@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.10)
+project(p25_keyextractor)
+set(CMAKE_CXX_STANDARD 17)
+find_package(OpenSSL REQUIRED)
+find_package(CUDAToolkit QUIET)
+
+add_executable(p25_keyextractor_cpu main.cpp)
+target_link_libraries(p25_keyextractor_cpu PRIVATE OpenSSL::Crypto)
+
+if(CUDAToolkit_FOUND)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    add_executable(p25_keyextractor_gpu cuda_des.cu)
+    target_link_libraries(p25_keyextractor_gpu PRIVATE CUDA::cudart)
+    message(STATUS "CUDA support enabled. Build GPU version with: make p25_keyextractor_gpu")
+endif()
