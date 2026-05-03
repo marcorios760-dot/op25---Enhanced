@@ -44,6 +44,7 @@ else
 fi
 exit 127
 '''
+import os
 import sys
 import curses
 import curses.textpad
@@ -52,6 +53,12 @@ import json
 import threading
 import traceback
 import socket
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'python')))
+try:
+    from key_recovery import store_ciphertext
+except ImportError:
+    store_ciphertext = None
 
 from gnuradio import gr
 
@@ -512,6 +519,15 @@ class curses_terminal(threading.Thread):
                 self.lg_step = int(msg['tuning_step_large'])
             if 'default_channel' in msg and str(msg['default_channel']) != "":
                 self.default_channel = str(msg['default_channel'])
+        elif msg['json_type'] == 'key_recovery_capture':
+            if store_ciphertext is not None:
+                try:
+                    ciphertext = msg.get('ciphertext', '')
+                    if ciphertext:
+                        ciphertext_bytes = bytearray(int(ciphertext[i:i+2], 16) for i in range(0, len(ciphertext), 2))
+                        store_ciphertext(msg.get('tgid'), msg.get('kid'), bytes(ciphertext_bytes))
+                except Exception:
+                    pass
  
         return False
 

@@ -615,6 +615,17 @@ namespace gr {
                         packed_codeword ciphertext;
                         imbe_pack(ciphertext, u[0], u[1], u[2], u[3], u[4], u[5], u[6], u[7]);
                         audio_valid = crypt_algs.process(ciphertext, fr_type, i);
+                        if ((fr_type == FT_LDU1) && (i == 0)) {
+                            char ciphertext_hex[23];
+                            for (int b = 0; b < 11; ++b) {
+                                sprintf(&ciphertext_hex[b*2], "%02x", ciphertext[b]);
+                            }
+                            ciphertext_hex[22] = '\0';
+                            std::string key_recovery_msg = std::string("{\"json_type\": \"key_recovery_capture\", \"tgid\": ") + std::to_string(vf_tgid) +
+                                ", \"kid\": " + std::to_string(ess_keyid) +
+                                ", \"ciphertext\": \"" + std::string(ciphertext_hex) + "\"}";
+                            send_msg(key_recovery_msg, M_P25_JSON_DATA);
+                        }
                         sprintf(s,"%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
                                 ciphertext[0], ciphertext[1], ciphertext[2], ciphertext[3], ciphertext[4], ciphertext[5],
                                 ciphertext[6], ciphertext[7], ciphertext[8], ciphertext[9], ciphertext[10]);

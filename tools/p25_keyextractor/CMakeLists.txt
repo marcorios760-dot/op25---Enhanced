@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.10)
+project(p25_keyextractor)
+set(CMAKE_CXX_STANDARD 17)
+find_package(OpenSSL REQUIRED)
+add_executable(p25_keyextractor main.cpp)
+target_link_libraries(p25_keyextractor PRIVATE OpenSSL::Crypto)
