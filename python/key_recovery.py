@@ -59,18 +59,22 @@ def attempt_recovery(tgid=None, kid=None):
     results = []
     with recovery_lock:
         targets = [(tgid, kid)] if (tgid is not None and kid is not None) else list(ciphertext_store.keys())
+    with recovery_lock:
+        targets = [(tgid, kid)] if (tgid is not None and kid is not None) else list(ciphertext_store.keys())
         for (tgid, kid) in targets:
             samples = ciphertext_store.get((tgid, kid), [])
             if not samples:
                 continue
-            ciphertext_hex = samples[0]
-            for cipher_type in ("adp", "des"):
-                print(f"[*] Attempting {cipher_type.upper()} recovery for TGID {tgid}, KID {kid:#x}...")
-                key = recover_key(ciphertext_hex, cipher_type)
+            print(f"[*] Attempting {cipher_type} recovery for TGID {tgid}, KID {kid:#x}...")
+            key = None
+            # Try the most recent samples first, stopping when recovery succeeds
+            for ciphertext_hex in reversed(samples):
+                key = recover_key(ciphertext_hex, "adp")
                 if key:
-                    results.append((tgid, kid, cipher_type.upper(), key))
-                    ciphertext_store[(tgid, kid)] = []
                     break
+            if key:
+                results.append((tgid, kid, "ADP", key))
+                ciphertext_store[(tgid, kid)] = []
     return results
 
 
